@@ -1,15 +1,28 @@
-/* global app.js — runs entirely in the browser, talks to the Express API */
+/**
+ * app.js — 4Learners frontend
+ *
+ * Runs entirely in the browser / Capacitor Android WebView.
+ * Uses engine.js for session logic and calls OpenRouter AI directly —
+ * no Node.js server required, making this suitable for an Android APK.
+ */
 'use strict';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const QUIZ_TIME_LIMIT_MS = 15000; // 15 seconds per question
+const QUIZ_TIME_LIMIT_MS   = 15000; // 15 s per question
+const API_KEY_STORAGE_KEY  = '4learners_openrouter_key';
+const MAX_DEPTH            = 3;
+
+// ── Engine (from engine.js) ──────────────────────────────────────────────────
+
+const { AdaptiveSession, AIClient, Phase } = Engine;
 
 // ── State ────────────────────────────────────────────────────────────────────
 
-let sessionId = null;
-let timerStart = null;
-let timerAnimationId = null;
+let adaptiveSession = null;
+let pendingQuizQuestions = null; // questions loaded alongside sentences
+let timerStart        = null;
+let timerAnimationId  = null;
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
@@ -25,127 +38,140 @@ function setProgress(barId, current, total) {
   $(barId).style.width = pct + '%';
 }
 
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function renderInterestPanel(panelId, interests) {
   const panel = $(panelId);
-  if (!interests || interests.length === 0) {
-    panel.innerHTML = '';
-    return;
-  }
+  if (!interests || interests.length === 0) { panel.innerHTML = ''; return; }
   const maxScore = Math.max(...interests.map((i) => i.score), 1);
   panel.innerHTML = `
     <h3>Your interests so far</h3>
-    ${interests
-      .map(
-        (i) => `
+    ${interests.map((i) => `
       <div class="interest-bar-row">
         <span class="interest-bar-label">${escHtml(i.topic)}</span>
         <div class="interest-bar-track">
           <div class="interest-bar-fill" style="width:${(i.score / maxScore) * 100}%"></div>
         </div>
         <span class="interest-bar-score">${i.score}</span>
-      </div>`
-      )
-      .join('')}`;
+      </div>`).join('')}`;
 }
 
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+// ── API Key / Settings ────────────────────────────────────────────────────────
+
+function getSavedApiKey() {
+  return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
 }
 
-// ── API helpers ───────────────────────────────────────────────────────────────
+function saveApiKey(key) {
+  localStorage.setItem(API_KEY_STORAGE_KEY, key.trim());
+}
 
-async function api(method, path, body) {
-  const opts = {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-  };
-  if (body !== undefined) opts.body = JSON.stringify(body);
-  const res = await fetch('/api' + path, opts);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || res.statusText);
-  return data;
+function openSettings() {
+  $('settings-api-key').value = getSavedApiKey();
+  showScreen('settings');
+}
+
+function saveSettings() {
+  const key = $('settings-api-key').value.trim();
+  if (!key) {
+    $('settings-error').textContent = 'Please enter your OpenRouter API key.';
+    $('settings-error').classList.remove('hidden');
+    return;
+  }
+  saveApiKey(key);
+  $('settings-error').classList.add('hidden');
+  showScreen('start');
 }
 
 // ── Learning phase ────────────────────────────────────────────────────────────
 
-function renderLearning(state) {
+function renderLearning() {
+  const ls = adaptiveSession.learningSession;
   showScreen('learning');
-  $('learning-depth').textContent = state.depthLevel;
-  setProgress('learning-progress', state.currentIndex, state.total);
+  $('learning-depth').textContent = adaptiveSession.depthLevel;
+  setProgress('learning-progress', ls.currentIndex, ls.total);
 
-  const s = state.currentSentence;
+  const s = ls.currentSentence;
   if (!s) return;
 
   $('sentence-text').textContent = s.text;
   $('detail-box').classList.add('hidden');
-  $('detail-text').textContent = '';
-
-  // Show "tell me more" only if detail text exists
+  $('detail-text').textContent = s.detail || '';
   $('tell-more-btn').style.display = s.detail ? 'inline-block' : 'none';
 
-  renderInterestPanel('interest-panel', state.topInterests);
+  renderInterestPanel('interest-panel', adaptiveSession.interestTracker.getTopInterests());
+  disableActionButtons(false);
 }
 
 async function handleSentenceAction(action) {
-  // If "tell me more" is clicked and detail hasn't been shown yet, show it first
+  const ls = adaptiveSession.learningSession;
+
+  // "Tell me more" first shows the detail; second click records + advances
   if (action === 'tell_me_more') {
     const detailBox = $('detail-box');
     if (detailBox.classList.contains('hidden')) {
-      const sentenceText = $('sentence-text').textContent;
-      // Try to get detail from the DOM (we stored it on the button dataset)
-      const detail = $('tell-more-btn').dataset.detail;
-      $('detail-text').textContent = detail || '';
       detailBox.classList.remove('hidden');
-      return; // Don't record yet — wait for user to click "Got it" or "Tell me more" again
+      return;
     }
   }
 
   disableActionButtons(true);
-  try {
-    const state = await api('POST', `/sessions/${sessionId}/sentence`, { action });
-    applyState(state);
-  } catch (err) {
-    alert('Error: ' + err.message);
-    disableActionButtons(false);
+
+  switch (action) {
+    case 'opened':     ls.markOpened();    break;
+    case 'tell_me_more': ls.markTellMeMore(); break;
+    case 'skipped':    ls.markSkipped();   break;
+  }
+
+  if (!ls.hasNext) {
+    // Learning phase done — transition to quiz
+    if (pendingQuizQuestions && pendingQuizQuestions.length > 0) {
+      adaptiveSession.beginQuiz(pendingQuizQuestions);
+      pendingQuizQuestions = null;
+      renderQuiz();
+    } else {
+      // No questions available; jump straight to next level
+      await advanceOrComplete();
+    }
+  } else {
+    renderLearning();
   }
 }
 
 function disableActionButtons(disabled) {
-  ['skip-btn', 'tell-more-btn', 'got-it-btn'].forEach((id) => {
-    $(id).disabled = disabled;
-  });
+  ['skip-btn', 'tell-more-btn', 'got-it-btn'].forEach((id) => { $(id).disabled = disabled; });
 }
 
 // ── Quiz phase ────────────────────────────────────────────────────────────────
 
-function renderQuiz(state) {
+function renderQuiz() {
+  const qs = adaptiveSession.quizSession;
   showScreen('quiz');
-  $('quiz-depth').textContent = state.depthLevel;
-  setProgress('quiz-progress', state.currentIndex, state.total);
+  $('quiz-depth').textContent = adaptiveSession.depthLevel;
+  setProgress('quiz-progress', qs.currentIndex, qs.total);
 
-  const q = state.currentQuestion;
+  const q = qs.currentQuestion;
   if (!q) return;
 
-  $('quiz-topic').textContent = q.topic;
+  $('quiz-topic').textContent    = q.topic;
   $('quiz-question').textContent = q.question;
-  $('quiz-feedback').classList.add('hidden');
-  $('quiz-feedback').className = 'feedback hidden';
+  $('quiz-feedback').className   = 'feedback hidden';
 
   const grid = $('quiz-options');
   grid.innerHTML = '';
   q.options.forEach((opt, idx) => {
     const btn = document.createElement('button');
-    btn.className = 'option-btn';
+    btn.className  = 'option-btn';
     btn.textContent = opt;
     btn.addEventListener('click', () => handleAnswer(idx));
     grid.appendChild(btn);
   });
 
-  renderInterestPanel('quiz-interest-panel', state.topInterests);
+  renderInterestPanel('quiz-interest-panel', adaptiveSession.interestTracker.getTopInterests());
   startTimer();
 }
 
@@ -154,162 +180,123 @@ function startTimer() {
   const bar = $('timer-bar');
   bar.style.transition = 'none';
   bar.style.width = '100%';
-
-  // Force reflow so the transition resets
-  bar.getBoundingClientRect();
+  bar.getBoundingClientRect(); // force reflow
   bar.style.transition = `width ${QUIZ_TIME_LIMIT_MS}ms linear`;
   bar.style.width = '0%';
 
   if (timerAnimationId) clearTimeout(timerAnimationId);
-  timerAnimationId = setTimeout(() => {
-    // Auto-submit with a wrong answer if time runs out
-    handleAnswer(-1);
-  }, QUIZ_TIME_LIMIT_MS);
+  timerAnimationId = setTimeout(() => handleAnswer(-1), QUIZ_TIME_LIMIT_MS);
 }
 
 async function handleAnswer(selectedIndex) {
-  if (timerAnimationId) {
-    clearTimeout(timerAnimationId);
-    timerAnimationId = null;
-  }
+  if (timerAnimationId) { clearTimeout(timerAnimationId); timerAnimationId = null; }
 
-  // Stop timer bar
   const bar = $('timer-bar');
   bar.style.transition = 'none';
-  bar.style.width = bar.style.width; // freeze current value
 
   const responseTimeMs = timerStart ? Date.now() - timerStart : QUIZ_TIME_LIMIT_MS;
-
-  // Disable all option buttons
   document.querySelectorAll('.option-btn').forEach((b) => (b.disabled = true));
 
+  const qs = adaptiveSession.quizSession;
+  qs.startTimer();
+  const { correct } = qs.submitAnswer(selectedIndex, Date.now() + responseTimeMs);
+
+  const fb = $('quiz-feedback');
+  fb.textContent = correct ? '✓ Correct!' : '✗ Wrong — next question coming up';
+  fb.className   = 'feedback ' + (correct ? 'correct-fb' : 'wrong-fb');
+  fb.classList.remove('hidden');
+
+  const options = document.querySelectorAll('.option-btn');
+  if (selectedIndex >= 0 && selectedIndex < options.length) {
+    options[selectedIndex].classList.add(correct ? 'correct' : 'wrong');
+  }
+
+  if (!qs.hasNext) {
+    setTimeout(() => advanceOrComplete(), 1200);
+  } else {
+    setTimeout(() => renderQuiz(), 1200);
+  }
+}
+
+// ── Level advancement ─────────────────────────────────────────────────────────
+
+async function advanceOrComplete() {
+  showScreen('loading');
+  $('loading-message').textContent = 'Preparing next level based on your interests…';
   try {
-    const state = await api('POST', `/sessions/${sessionId}/answer`, {
-      selectedIndex,
-      responseTimeMs,
-    });
-
-    // Show feedback briefly before advancing
-    const fb = $('quiz-feedback');
-    const wasCorrect = state.lastAnswer?.correct ?? false;
-    fb.textContent = wasCorrect
-      ? '✓ Correct!'
-      : `✗ Wrong — the next question is coming up`;
-    fb.className = 'feedback ' + (wasCorrect ? 'correct-fb' : 'wrong-fb');
-    fb.classList.remove('hidden');
-
-    // Highlight chosen and correct options
-    const options = document.querySelectorAll('.option-btn');
-    if (selectedIndex >= 0 && selectedIndex < options.length) {
-      options[selectedIndex].classList.add(wasCorrect ? 'correct' : 'wrong');
+    const topTopics = await adaptiveSession.advanceToNextLevel();
+    if (adaptiveSession.phase === Phase.COMPLETE) {
+      renderComplete();
+    } else {
+      // advanceToNextLevel already started a new learning phase; also pre-load quiz
+      await preloadQuizQuestions(topTopics);
+      renderLearning();
     }
-
-    setTimeout(() => applyState(state), 1200);
   } catch (err) {
-    alert('Error: ' + err.message);
-  }
-}
-
-// ── State dispatcher ──────────────────────────────────────────────────────────
-
-function applyState(state) {
-  switch (state.phase) {
-    case 'learning':
-      // Re-fetch to get current sentence data (state from answer doesn't include it)
-      if (state.currentSentence) {
-        // Store detail for inline display
-        if (state.currentSentence.detail) {
-          $('tell-more-btn').dataset.detail = state.currentSentence.detail;
-        }
-        renderLearning(state);
-        disableActionButtons(false);
-      } else {
-        // Need to refresh
-        refreshSession();
-      }
-      break;
-
-    case 'quiz':
-      if (state.currentQuestion) {
-        renderQuiz(state);
-      } else {
-        refreshSession();
-      }
-      break;
-
-    case 'complete':
-      renderComplete(state);
-      break;
-  }
-}
-
-async function refreshSession() {
-  try {
-    showScreen('loading');
-    $('loading-message').textContent = 'Loading next content…';
-    const state = await api('GET', `/sessions/${sessionId}`);
-    applyState(state);
-  } catch (err) {
-    alert('Error refreshing session: ' + err.message);
+    alert('Error advancing: ' + err.message);
     showScreen('start');
+  }
+}
+
+async function preloadQuizQuestions(topics) {
+  try {
+    const aiClient = new AIClient(getSavedApiKey());
+    const content  = await aiClient.generateContent(topics, adaptiveSession.depthLevel);
+    pendingQuizQuestions = content.questions ?? [];
+  } catch {
+    pendingQuizQuestions = [];
   }
 }
 
 // ── Complete screen ───────────────────────────────────────────────────────────
 
-function renderComplete(state) {
+function renderComplete() {
   showScreen('complete');
+  const interests = adaptiveSession.interestTracker.getTopInterests();
   const panel = $('final-interests');
-  const interests = state.topInterests ?? [];
   if (interests.length === 0) {
     panel.innerHTML = '<p style="color:var(--muted)">No interest data recorded.</p>';
-  } else {
-    const maxScore = Math.max(...interests.map((i) => i.score), 1);
-    panel.innerHTML = `
-      <h3>Your top interests from this session</h3>
-      ${interests
-        .map(
-          (i) => `
-        <div class="interest-bar-row">
-          <span class="interest-bar-label">${escHtml(i.topic)}</span>
-          <div class="interest-bar-track">
-            <div class="interest-bar-fill" style="width:${(i.score / maxScore) * 100}%"></div>
-          </div>
-          <span class="interest-bar-score">${i.score}</span>
-        </div>`
-        )
-        .join('')}`;
+    return;
   }
+  const maxScore = Math.max(...interests.map((i) => i.score), 1);
+  panel.innerHTML = `
+    <h3>Your top interests from this session</h3>
+    ${interests.map((i) => `
+      <div class="interest-bar-row">
+        <span class="interest-bar-label">${escHtml(i.topic)}</span>
+        <div class="interest-bar-track">
+          <div class="interest-bar-fill" style="width:${(i.score / maxScore) * 100}%"></div>
+        </div>
+        <span class="interest-bar-score">${i.score}</span>
+      </div>`).join('')}`;
 }
 
 // ── Start flow ────────────────────────────────────────────────────────────────
 
 async function startSession() {
+  const apiKey = getSavedApiKey();
+  if (!apiKey) {
+    showError('An OpenRouter API key is required. Tap ⚙ Settings to add one.');
+    return;
+  }
+
   const raw = $('topic-input').value.trim();
-  if (!raw) {
-    showError('Please enter at least one topic.');
-    return;
-  }
+  if (!raw) { showError('Please enter at least one topic.'); return; }
   const topics = raw.split(',').map((t) => t.trim()).filter(Boolean);
-  if (topics.length === 0) {
-    showError('Please enter at least one topic.');
-    return;
-  }
+  if (topics.length === 0) { showError('Please enter at least one topic.'); return; }
 
   $('start-error').classList.add('hidden');
   showScreen('loading');
   $('loading-message').textContent = 'Generating your personalised content…';
 
+  const aiClient = new AIClient(apiKey);
+  adaptiveSession    = new AdaptiveSession(aiClient, { maxDepth: MAX_DEPTH });
+  pendingQuizQuestions = null;
+
   try {
-    const state = await api('POST', '/sessions', { topics });
-    sessionId = state.sessionId;
-
-    // Store detail for the first sentence
-    if (state.currentSentence?.detail) {
-      $('tell-more-btn').dataset.detail = state.currentSentence.detail;
-    }
-
-    applyState(state);
+    const content = await adaptiveSession.start(topics);
+    pendingQuizQuestions = content.questions ?? [];
+    renderLearning();
   } catch (err) {
     showScreen('start');
     showError('Failed to start session: ' + err.message);
@@ -325,16 +312,23 @@ function showError(msg) {
 // ── Event listeners ───────────────────────────────────────────────────────────
 
 $('start-btn').addEventListener('click', startSession);
-$('topic-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') startSession();
-});
+$('topic-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') startSession(); });
 
-$('skip-btn').addEventListener('click', () => handleSentenceAction('skipped'));
+$('settings-btn').addEventListener('click', openSettings);
+$('settings-save-btn').addEventListener('click', saveSettings);
+$('settings-back-btn').addEventListener('click', () => showScreen('start'));
+
+$('skip-btn').addEventListener('click',      () => handleSentenceAction('skipped'));
 $('tell-more-btn').addEventListener('click', () => handleSentenceAction('tell_me_more'));
-$('got-it-btn').addEventListener('click', () => handleSentenceAction('opened'));
+$('got-it-btn').addEventListener('click',    () => handleSentenceAction('opened'));
 
 $('restart-btn').addEventListener('click', () => {
-  sessionId = null;
+  adaptiveSession = null;
   $('topic-input').value = '';
   showScreen('start');
 });
+
+// Show settings prompt if no API key stored
+if (!getSavedApiKey()) {
+  // Leave start screen active, user will notice the settings button
+}

@@ -30,9 +30,26 @@ header {
   color: #fff;
   text-align: center;
   padding: 1.5rem 1rem;
+  position: relative;
 }
 header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
 .tagline { font-size: 0.95rem; opacity: 0.85; margin-top: 0.25rem; }
+
+.btn-icon {
+  position: absolute;
+  top: 50%; right: 1rem;
+  transform: translateY(-50%);
+  background: rgba(255,255,255,0.18);
+  border: none;
+  color: #fff;
+  font-size: 1.3rem;
+  width: 2.4rem; height: 2.4rem;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--transition);
+}
+.btn-icon:hover { background: rgba(255,255,255,0.32); }
 
 /* ── Main ──────────────────────────────────────────────────────────────── */
 main {
@@ -59,6 +76,23 @@ main {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Settings screen ────────────────────────────────────────────────────── */
+#settings-screen h2 { font-size: 1.5rem; }
+#settings-screen p  { color: var(--muted); text-align: center; }
+#settings-screen p a { color: var(--primary); }
+
+#settings-api-key {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color var(--transition);
+  font-family: monospace;
+}
+#settings-api-key:focus { border-color: var(--primary); }
 
 /* ── Start screen ──────────────────────────────────────────────────────── */
 #start-screen h2 { font-size: 1.5rem; text-align: center; }

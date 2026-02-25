@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>4Learners</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -10,9 +10,29 @@
   <header>
     <h1>4Learners</h1>
     <p class="tagline">Adaptive learning that deepens with your interests</p>
+    <button id="settings-btn" class="btn-icon" title="Settings" aria-label="Settings">⚙</button>
   </header>
 
   <main id="app">
+    <!-- ── Settings Screen ──────────────────────────────────── -->
+    <section id="settings-screen" class="screen">
+      <h2>⚙ Settings</h2>
+      <p>Enter your <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter API key</a>.
+         It is stored only on this device.</p>
+      <input
+        id="settings-api-key"
+        type="password"
+        placeholder="sk-or-…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <p id="settings-error" class="error hidden"></p>
+      <div class="action-row" style="justify-content:flex-start;gap:0.75rem">
+        <button id="settings-back-btn" class="btn secondary">← Back</button>
+        <button id="settings-save-btn" class="btn primary">Save</button>
+      </div>
+    </section>
+
     <!-- ── Start Screen ──────────────────────────────────────── -->
     <section id="start-screen" class="screen active">
       <h2>What do you want to learn today?</h2>
@@ -80,6 +100,7 @@
     </section>
   </main>
 
+  <script src="engine.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
