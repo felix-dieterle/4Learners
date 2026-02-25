@@ -1,0 +1,18 @@
+{
+  "name": "4learners",
+  "version": "1.0.0",
+  "description": "Universal learning app that adapts depth based on user interests, powered by OpenRouter AI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test src/__tests__/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4Learners</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>4Learners</h1>
+    <p class="tagline">Adaptive learning that deepens with your interests</p>
+  </header>
+
+  <main id="app">
+    <!-- ── Start Screen ──────────────────────────────────────── -->
+    <section id="start-screen" class="screen active">
+      <h2>What do you want to learn today?</h2>
+      <p>Enter one or more topics separated by commas:</p>
+      <input
+        id="topic-input"
+        type="text"
+        placeholder="e.g. photosynthesis, black holes, machine learning"
+        autocomplete="off"
+      />
+      <button id="start-btn" class="btn primary">Start Learning</button>
+      <p id="start-error" class="error hidden"></p>
+    </section>
+
+    <!-- ── Loading Screen ────────────────────────────────────── -->
+    <section id="loading-screen" class="screen">
+      <div class="spinner"></div>
+      <p id="loading-message">Generating your personalised content…</p>
+    </section>
+
+    <!-- ── Learning Screen ───────────────────────────────────── -->
+    <section id="learning-screen" class="screen">
+      <div class="progress-bar-wrap">
+        <div id="learning-progress" class="progress-bar"></div>
+      </div>
+      <p class="phase-label">📖 Learning — Level <span id="learning-depth">1</span></p>
+      <div id="sentence-card" class="card">
+        <p id="sentence-text" class="sentence-text"></p>
+        <div id="detail-box" class="detail-box hidden">
+          <p id="detail-text"></p>
+        </div>
+        <div class="action-row">
+          <button id="skip-btn" class="btn secondary">Skip ⏭</button>
+          <button id="tell-more-btn" class="btn accent">Tell me more ➕</button>
+          <button id="got-it-btn" class="btn primary">Got it ✓</button>
+        </div>
+      </div>
+      <div id="interest-panel" class="interest-panel"></div>
+    </section>
+
+    <!-- ── Quiz Screen ───────────────────────────────────────── -->
+    <section id="quiz-screen" class="screen">
+      <div class="progress-bar-wrap">
+        <div id="quiz-progress" class="progress-bar"></div>
+      </div>
+      <p class="phase-label">🧠 Quiz — Level <span id="quiz-depth">1</span></p>
+      <div id="quiz-card" class="card">
+        <p id="quiz-topic" class="topic-tag"></p>
+        <p id="quiz-question" class="question-text"></p>
+        <div id="quiz-options" class="options-grid"></div>
+        <div id="quiz-feedback" class="feedback hidden"></div>
+        <div class="timer-wrap">
+          <div id="timer-bar" class="timer-bar"></div>
+        </div>
+      </div>
+      <div id="quiz-interest-panel" class="interest-panel"></div>
+    </section>
+
+    <!-- ── Complete Screen ───────────────────────────────────── -->
+    <section id="complete-screen" class="screen">
+      <h2>🎉 Session Complete!</h2>
+      <p>You've reached the deepest level we prepared for your interests.</p>
+      <div id="final-interests" class="final-interests"></div>
+      <button id="restart-btn" class="btn primary">Start a new session</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
