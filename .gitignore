@@ -1,0 +1,11 @@
+node_modules/
+npm-debug.log*
+.env
+.env.local
+*.log
+
+# Android build artifacts (keep project scaffold, exclude compiled outputs)
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
