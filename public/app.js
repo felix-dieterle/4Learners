@@ -230,6 +230,7 @@ async function advanceOrComplete() {
     } else {
       // advanceToNextLevel already started a new learning phase; also pre-load quiz
       await preloadQuizQuestions(topTopics);
+      await showDisclaimer();
       renderLearning();
     }
   } catch (err) {
@@ -271,6 +272,22 @@ function renderComplete() {
       </div>`).join('')}`;
 }
 
+// ── AI Disclaimer ─────────────────────────────────────────────────────────────
+
+function showDisclaimer() {
+  return new Promise((resolve) => {
+    const overlay = $('disclaimer-overlay');
+    overlay.classList.remove('hidden');
+    const btn = $('disclaimer-ok-btn');
+    const handler = () => {
+      overlay.classList.add('hidden');
+      btn.removeEventListener('click', handler);
+      resolve();
+    };
+    btn.addEventListener('click', handler);
+  });
+}
+
 // ── Start flow ────────────────────────────────────────────────────────────────
 
 async function startSession() {
@@ -296,6 +313,7 @@ async function startSession() {
   try {
     const content = await adaptiveSession.start(topics);
     pendingQuizQuestions = content.questions ?? [];
+    await showDisclaimer();
     renderLearning();
   } catch (err) {
     showScreen('start');
