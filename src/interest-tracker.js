@@ -16,6 +16,7 @@
 
 const TELL_ME_MORE_WEIGHT = 3;
 const OPENED_WEIGHT = 1;
+const LIKE_WEIGHT = 2;
 const SKIP_WEIGHT = 1;
 const FAST_CORRECT_WEIGHT = 2;
 const SLOW_OR_WRONG_WEIGHT = 1;
@@ -46,6 +47,14 @@ class InterestTracker {
    */
   recordTellMeMore(topic) {
     this._adjust(topic, TELL_ME_MORE_WEIGHT);
+  }
+
+  /**
+   * Record that the user liked a learning sentence or quiz question.
+   * @param {string} topic
+   */
+  recordLiked(topic) {
+    this._adjust(topic, LIKE_WEIGHT);
   }
 
   /**
@@ -120,4 +129,4 @@ class InterestTracker {
   }
 }
 
-module.exports = { InterestTracker, FAST_ANSWER_THRESHOLD_MS };
+module.exports = { InterestTracker, FAST_ANSWER_THRESHOLD_MS, LIKE_WEIGHT };

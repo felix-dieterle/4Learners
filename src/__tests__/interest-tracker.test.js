@@ -16,6 +16,14 @@ describe('InterestTracker', () => {
     assert.equal(tracker.getScore('physics'), 0);
   });
 
+  it('increases score on liked, between opened and tell_me_more', () => {
+    tracker.recordOpened('a');      // +1
+    tracker.recordLiked('b');       // +2
+    tracker.recordTellMeMore('c'); // +3
+    assert.ok(tracker.getScore('b') > tracker.getScore('a'));
+    assert.ok(tracker.getScore('c') > tracker.getScore('b'));
+  });
+
   it('increases score on opened', () => {
     tracker.recordOpened('physics');
     assert.ok(tracker.getScore('physics') > 0);

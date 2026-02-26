@@ -10,6 +10,7 @@
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const QUIZ_TIME_LIMIT_MS   = 15000; // 15 s per question
+const LIKE_BONUS_MS        = 2000;  // +2 s per like
 const API_KEY_STORAGE_KEY  = '4learners_openrouter_key';
 const MAX_DEPTH            = 3;
 const APP_VERSION          = '1.0.0';
@@ -29,6 +30,8 @@ let adaptiveSession = null;
 let pendingQuizQuestions = null; // questions loaded alongside sentences
 let timerStart        = null;
 let timerAnimationId  = null;
+let currentQuizTimeLimitMs = QUIZ_TIME_LIMIT_MS; // tracks current question's time limit
+let pendingLikeBonusMs = 0; // bonus time accumulated from learning-phase likes
 let currentCategoryName = null; // display name of the active topic category
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
@@ -123,6 +126,11 @@ function renderLearning() {
   $('detail-text').textContent = s.detail || '';
   $('tell-more-btn').style.display = s.detail ? 'inline-block' : 'none';
 
+  const likeSentenceBtn = $('like-sentence-btn');
+  likeSentenceBtn.disabled = false;
+  likeSentenceBtn.textContent = '❤️ +2s';
+  likeSentenceBtn.classList.remove('liked');
+
   renderInterestPanel('interest-panel', adaptiveSession.interestTracker.getTopInterests());
   disableActionButtons(false);
 }
@@ -183,6 +191,11 @@ function renderQuiz() {
   $('quiz-question').textContent = q.question;
   $('quiz-feedback').className   = 'feedback hidden';
 
+  const likeQuestionBtn = $('like-question-btn');
+  likeQuestionBtn.disabled = false;
+  likeQuestionBtn.textContent = '❤️ +2s';
+  likeQuestionBtn.classList.remove('liked');
+
   const grid = $('quiz-options');
   grid.innerHTML = '';
   q.options.forEach((opt, idx) => {
@@ -198,16 +211,38 @@ function renderQuiz() {
 }
 
 function startTimer() {
+  currentQuizTimeLimitMs = QUIZ_TIME_LIMIT_MS + pendingLikeBonusMs;
+  pendingLikeBonusMs = 0;
   timerStart = Date.now();
   const bar = $('timer-bar');
   bar.style.transition = 'none';
   bar.style.width = '100%';
   bar.getBoundingClientRect(); // force reflow
-  bar.style.transition = `width ${QUIZ_TIME_LIMIT_MS}ms linear`;
+  bar.style.transition = `width ${currentQuizTimeLimitMs}ms linear`;
   bar.style.width = '0%';
 
   if (timerAnimationId) clearTimeout(timerAnimationId);
-  timerAnimationId = setTimeout(() => handleAnswer(-1), QUIZ_TIME_LIMIT_MS);
+  timerAnimationId = setTimeout(() => handleAnswer(-1), currentQuizTimeLimitMs);
+}
+
+function extendTimer() {
+  if (!timerStart) return;
+  const elapsed = Date.now() - timerStart;
+  const remaining = Math.max(0, currentQuizTimeLimitMs - elapsed);
+  const newRemaining = remaining + LIKE_BONUS_MS;
+  currentQuizTimeLimitMs += LIKE_BONUS_MS;
+
+  clearTimeout(timerAnimationId);
+
+  const bar = $('timer-bar');
+  const newPct = (newRemaining / currentQuizTimeLimitMs) * 100;
+  bar.style.transition = 'none';
+  bar.style.width = newPct + '%';
+  bar.getBoundingClientRect(); // force reflow
+  bar.style.transition = `width ${newRemaining}ms linear`;
+  bar.style.width = '0%';
+
+  timerAnimationId = setTimeout(() => handleAnswer(-1), newRemaining);
 }
 
 async function handleAnswer(selectedIndex) {
@@ -216,8 +251,9 @@ async function handleAnswer(selectedIndex) {
   const bar = $('timer-bar');
   bar.style.transition = 'none';
 
-  const responseTimeMs = timerStart ? Date.now() - timerStart : QUIZ_TIME_LIMIT_MS;
+  const responseTimeMs = timerStart ? Date.now() - timerStart : currentQuizTimeLimitMs;
   document.querySelectorAll('.option-btn').forEach((b) => (b.disabled = true));
+  $('like-question-btn').disabled = true;
 
   const qs = adaptiveSession.quizSession;
   qs.startTimer();
@@ -520,6 +556,28 @@ $('settings-back-btn').addEventListener('click', () => showScreen('start'));
 $('skip-btn').addEventListener('click',      () => handleSentenceAction('skipped'));
 $('tell-more-btn').addEventListener('click', () => handleSentenceAction('tell_me_more'));
 $('got-it-btn').addEventListener('click',    () => handleSentenceAction('opened'));
+
+$('like-sentence-btn').addEventListener('click', () => {
+  const btn = $('like-sentence-btn');
+  btn.disabled = true;
+  btn.textContent = '❤️ Liked!';
+  btn.classList.add('liked');
+  pendingLikeBonusMs += LIKE_BONUS_MS;
+  const s = adaptiveSession.learningSession.currentSentence;
+  if (s) adaptiveSession.interestTracker.recordLiked(s.topic);
+  renderInterestPanel('interest-panel', adaptiveSession.interestTracker.getTopInterests());
+});
+
+$('like-question-btn').addEventListener('click', () => {
+  const btn = $('like-question-btn');
+  btn.disabled = true;
+  btn.textContent = '❤️ Liked!';
+  btn.classList.add('liked');
+  extendTimer();
+  const q = adaptiveSession.quizSession.currentQuestion;
+  if (q) adaptiveSession.interestTracker.recordLiked(q.topic);
+  renderInterestPanel('quiz-interest-panel', adaptiveSession.interestTracker.getTopInterests());
+});
 
 $('restart-btn').addEventListener('click', () => {
   adaptiveSession = null;
