@@ -136,6 +136,43 @@
 
     setApiKey(key) { this._apiKey = key; }
 
+    async generateEssay(topic, depthLevel) {
+      if (!this._apiKey) throw new Error('OpenRouter API key is not set. Open Settings to add it.');
+
+      const depthLabel = depthLevel <= 1 ? 'introductory'
+                       : depthLevel === 2 ? 'intermediate'
+                       : depthLevel === 3 ? 'advanced' : 'expert';
+
+      const prompt = `You are an expert educator. Write a short educational essay (150-250 words) about the following topic for a ${depthLabel}-level student.
+
+Topic: ${topic}
+
+The essay should be engaging and informative. Return only the essay text, no title or headings.`;
+
+      const res = await fetch(OPENROUTER_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this._apiKey}`,
+          'HTTP-Referer': 'https://github.com/felix-dieterle/4Learners',
+          'X-Title': '4Learners',
+        },
+        body: JSON.stringify({
+          model: this._model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.7,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`OpenRouter API error ${res.status}: ${text}`);
+      }
+
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content ?? '';
+    }
+
     async generateContent(topics, depthLevel) {
       if (!this._apiKey) throw new Error('OpenRouter API key is not set. Open Settings to add it.');
 
