@@ -563,6 +563,9 @@ $('like-sentence-btn').addEventListener('click', () => {
   btn.textContent = '❤️ Liked!';
   btn.classList.add('liked');
   pendingLikeBonusMs += LIKE_BONUS_MS;
+  const s = adaptiveSession.learningSession.currentSentence;
+  if (s) adaptiveSession.interestTracker.recordLiked(s.topic);
+  renderInterestPanel('interest-panel', adaptiveSession.interestTracker.getTopInterests());
 });
 
 $('like-question-btn').addEventListener('click', () => {
@@ -571,6 +574,9 @@ $('like-question-btn').addEventListener('click', () => {
   btn.textContent = '❤️ Liked!';
   btn.classList.add('liked');
   extendTimer();
+  const q = adaptiveSession.quizSession.currentQuestion;
+  if (q) adaptiveSession.interestTracker.recordLiked(q.topic);
+  renderInterestPanel('quiz-interest-panel', adaptiveSession.interestTracker.getTopInterests());
 });
 
 $('restart-btn').addEventListener('click', () => {
