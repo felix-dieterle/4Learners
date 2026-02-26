@@ -60,6 +60,11 @@ function renderInterestPanel(panelId, interests) {
       </div>`).join('')}`;
 }
 
+function setLevelIcon(iconId, depth) {
+  const level = Math.min(Math.max(depth, 1), 3);
+  $(iconId).src = `icons/level-${level}.svg`;
+}
+
 // ── API Key / Settings ────────────────────────────────────────────────────────
 
 function getSavedApiKey() {
@@ -93,6 +98,7 @@ function renderLearning() {
   const ls = adaptiveSession.learningSession;
   showScreen('learning');
   $('learning-depth').textContent = adaptiveSession.depthLevel;
+  setLevelIcon('learning-level-icon', adaptiveSession.depthLevel);
   setProgress('learning-progress', ls.currentIndex, ls.total);
 
   const s = ls.currentSentence;
@@ -152,6 +158,7 @@ function renderQuiz() {
   const qs = adaptiveSession.quizSession;
   showScreen('quiz');
   $('quiz-depth').textContent = adaptiveSession.depthLevel;
+  setLevelIcon('quiz-level-icon', adaptiveSession.depthLevel);
   setProgress('quiz-progress', qs.currentIndex, qs.total);
 
   const q = qs.currentQuestion;

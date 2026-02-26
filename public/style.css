@@ -161,6 +161,15 @@ main {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.level-icon {
+  width: 1.2em;
+  height: 1.2em;
+  flex-shrink: 0;
 }
 
 /* ── Learning screen ────────────────────────────────────────────────────── */

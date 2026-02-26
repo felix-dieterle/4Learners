@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Seedling: a single sprout representing a beginner level -->
+  <line x1="12" y1="22" x2="12" y2="11"/>
+  <path d="M12 11C12 11 8 7 9 4C10 1 13 1 14 3C15 5 14 9 12 11Z"/>
+</svg>
