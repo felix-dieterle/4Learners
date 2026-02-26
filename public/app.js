@@ -12,6 +12,10 @@
 const QUIZ_TIME_LIMIT_MS   = 15000; // 15 s per question
 const API_KEY_STORAGE_KEY  = '4learners_openrouter_key';
 const MAX_DEPTH            = 3;
+const APP_VERSION          = '1.0.0';
+const GITHUB_RELEASES_API  = 'https://api.github.com/repos/felix-dieterle/4Learners/releases/latest';
+const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const UPDATE_CHECK_STORAGE_KEY = '4learners_update_check';
 
 // ── Engine (from engine.js) ──────────────────────────────────────────────────
 
@@ -393,6 +397,45 @@ function showError(msg) {
   el.classList.remove('hidden');
 }
 
+// ── Update check ──────────────────────────────────────────────────────────────
+
+function parseVersion(v) {
+  // Strip pre-release suffix (e.g. "1.0.0-beta" → "1.0.0") before parsing
+  return (v || '').replace(/^v/, '').split('-')[0].split('.').map(Number);
+}
+
+function isNewerVersion(latest, current) {
+  const l = parseVersion(latest);
+  const c = parseVersion(current);
+  for (let i = 0; i < Math.max(l.length, c.length); i++) {
+    const lv = l[i] || 0;
+    const cv = c[i] || 0;
+    if (lv > cv) return true;
+    if (lv < cv) return false;
+  }
+  return false;
+}
+
+async function checkForUpdates() {
+  const lastCheck = parseInt(localStorage.getItem(UPDATE_CHECK_STORAGE_KEY) || '0', 10);
+  if (Date.now() - lastCheck < UPDATE_CHECK_INTERVAL_MS) return;
+  try {
+    const res = await fetch(GITHUB_RELEASES_API);
+    if (!res.ok) return;
+    const data = await res.json();
+    localStorage.setItem(UPDATE_CHECK_STORAGE_KEY, String(Date.now()));
+    const latestTag = data.tag_name || '';
+    if (!isNewerVersion(latestTag, APP_VERSION)) return;
+    const downloadUrl = data.html_url || 'https://github.com/felix-dieterle/4Learners/releases/latest';
+    const banner = $('update-banner');
+    $('update-banner-text').textContent = `🆕 Version ${latestTag.replace(/^v/, '')} is available!`;
+    $('update-banner-link').href = downloadUrl;
+    banner.classList.remove('hidden');
+  } catch {
+    // Network unavailable or API error — silently ignore
+  }
+}
+
 // ── Category chips ────────────────────────────────────────────────────────────
 
 // Pick a random category index once per page load so re-renders stay consistent.
@@ -454,6 +497,8 @@ $('restart-btn').addEventListener('click', () => {
 $('essay-btn').addEventListener('click', openEssayModal);
 $('essay-generate-btn').addEventListener('click', handleGenerateEssay);
 $('essay-close-btn').addEventListener('click', () => $('essay-overlay').classList.add('hidden'));
+$('update-banner-dismiss').addEventListener('click', () => $('update-banner').classList.add('hidden'));
 
 // Show settings prompt if no API key stored
 renderCategoryChips();
+checkForUpdates();

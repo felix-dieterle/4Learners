@@ -446,6 +446,35 @@ main {
   color: #fff;
 }
 
+/* ── Update Banner ─────────────────────────────────────────────────────── */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #065f46;
+  color: #fff;
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  flex-wrap: wrap;
+}
+.update-banner-btn {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.update-banner-dismiss {
+  position: static;
+  transform: none;
+  margin-left: auto;
+  background: rgba(255,255,255,0.18);
+  font-size: 1rem;
+  width: 1.8rem;
+  height: 1.8rem;
+}
+.update-banner-dismiss:hover { background: rgba(255,255,255,0.32); }
+
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   .action-row { justify-content: stretch; }
