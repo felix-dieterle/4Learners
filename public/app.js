@@ -295,6 +295,56 @@ function showDisclaimer() {
   });
 }
 
+// ── Essay generation ──────────────────────────────────────────────────────────
+
+function openEssayModal() {
+  const interests = adaptiveSession ? adaptiveSession.interestTracker.getTopInterests() : [];
+  const select = $('essay-topic-select');
+  select.innerHTML = '';
+  if (interests.length > 0) {
+    interests.forEach((i) => {
+      const opt = document.createElement('option');
+      opt.value = i.topic;
+      opt.textContent = i.topic;
+      select.appendChild(opt);
+    });
+  }
+  const depth = adaptiveSession ? adaptiveSession.depthLevel : 1;
+  $('essay-level-select').value = String(Math.min(Math.max(depth, 1), MAX_DEPTH));
+  $('essay-content').classList.add('hidden');
+  $('essay-content').textContent = '';
+  $('essay-error').classList.add('hidden');
+  $('essay-spinner').classList.add('hidden');
+  $('essay-overlay').classList.remove('hidden');
+}
+
+async function handleGenerateEssay() {
+  const topic = $('essay-topic-select').value;
+  const level = parseInt($('essay-level-select').value, 10);
+  if (!topic) {
+    $('essay-error').textContent = 'Please select a topic.';
+    $('essay-error').classList.remove('hidden');
+    return;
+  }
+  $('essay-error').classList.add('hidden');
+  $('essay-content').classList.add('hidden');
+  $('essay-spinner').classList.remove('hidden');
+  $('essay-generate-btn').disabled = true;
+
+  try {
+    const aiClient = new AIClient(getSavedApiKey());
+    const essayText = await aiClient.generateEssay(topic, level);
+    $('essay-content').textContent = essayText;
+    $('essay-content').classList.remove('hidden');
+  } catch (err) {
+    $('essay-error').textContent = 'Failed to generate essay: ' + err.message;
+    $('essay-error').classList.remove('hidden');
+  } finally {
+    $('essay-spinner').classList.add('hidden');
+    $('essay-generate-btn').disabled = false;
+  }
+}
+
 // ── Start flow ────────────────────────────────────────────────────────────────
 
 async function startSession() {
@@ -352,6 +402,10 @@ $('restart-btn').addEventListener('click', () => {
   $('topic-input').value = '';
   showScreen('start');
 });
+
+$('essay-btn').addEventListener('click', openEssayModal);
+$('essay-generate-btn').addEventListener('click', handleGenerateEssay);
+$('essay-close-btn').addEventListener('click', () => $('essay-overlay').classList.add('hidden'));
 
 // Show settings prompt if no API key stored
 if (!getSavedApiKey()) {
