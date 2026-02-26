@@ -16,6 +16,8 @@ const APP_VERSION          = '1.0.0';
 const GITHUB_RELEASES_API  = 'https://api.github.com/repos/felix-dieterle/4Learners/releases/latest';
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const UPDATE_CHECK_STORAGE_KEY = '4learners_update_check';
+const FIRST_RUN_STORAGE_KEY    = '4learners_first_run';
+const VERSION_TOAST_MS         = 2500; // must match .version-toast animation-duration in style.css
 
 // ── Engine (from engine.js) ──────────────────────────────────────────────────
 
@@ -436,6 +438,27 @@ async function checkForUpdates() {
   }
 }
 
+// ── Version toast ─────────────────────────────────────────────────────────
+
+function showVersionToast() {
+  const toast = $('version-toast');
+  if (!toast) return;
+  toast.textContent = `v${APP_VERSION}`;
+  toast.style.animationDuration = `${VERSION_TOAST_MS}ms`;
+  toast.classList.remove('hidden');
+  setTimeout(() => toast.classList.add('hidden'), VERSION_TOAST_MS);
+}
+
+// ── First-run auto-start ──────────────────────────────────────────────────
+
+function checkFirstRun() {
+  if (localStorage.getItem(FIRST_RUN_STORAGE_KEY)) return;
+  localStorage.setItem(FIRST_RUN_STORAGE_KEY, '1');
+  // topic-input is already pre-filled with a random built-in category by
+  // renderCategoryChips(), so starting the session requires no API key.
+  startSession();
+}
+
 // ── Category chips ────────────────────────────────────────────────────────────
 
 // Pick a random category index once per page load so re-renders stay consistent.
@@ -501,4 +524,6 @@ $('update-banner-dismiss').addEventListener('click', () => $('update-banner').cl
 
 // Show settings prompt if no API key stored
 renderCategoryChips();
+showVersionToast();
+checkFirstRun();
 checkForUpdates();

@@ -475,6 +475,29 @@ main {
 }
 .update-banner-dismiss:hover { background: rgba(255,255,255,0.32); }
 
+/* ── Version Toast ─────────────────────────────────────────────────────── */
+.version-toast {
+  position: fixed;
+  top: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(79, 70, 229, 0.88);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.35rem 0.9rem;
+  border-radius: 20px;
+  z-index: 900;
+  pointer-events: none;
+  animation: versionFadeInOut 2.5s ease forwards;
+}
+@keyframes versionFadeInOut {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   .action-row { justify-content: stretch; }
