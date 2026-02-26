@@ -29,6 +29,7 @@ let adaptiveSession = null;
 let pendingQuizQuestions = null; // questions loaded alongside sentences
 let timerStart        = null;
 let timerAnimationId  = null;
+let currentCategoryName = null; // display name of the active topic category
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
@@ -71,6 +72,12 @@ function setLevelIcon(iconId, depth) {
   $(iconId).src = `icons/level-${level}.svg`;
 }
 
+function getCategoryName(topic) {
+  const categories = typeof BUILTIN_CATEGORIES !== 'undefined' ? BUILTIN_CATEGORIES : [];
+  const cat = categories.find((c) => c.topics.some((t) => t.toLowerCase() === (topic || '').toLowerCase()));
+  return cat ? cat.name : topic;
+}
+
 // ── API Key / Settings ────────────────────────────────────────────────────────
 
 function getSavedApiKey() {
@@ -104,6 +111,7 @@ function renderLearning() {
   const ls = adaptiveSession.learningSession;
   showScreen('learning');
   $('learning-depth').textContent = adaptiveSession.depthLevel;
+  $('learning-category').textContent = currentCategoryName || '';
   setLevelIcon('learning-level-icon', adaptiveSession.depthLevel);
   setProgress('learning-progress', ls.currentIndex, ls.total);
 
@@ -164,6 +172,7 @@ function renderQuiz() {
   const qs = adaptiveSession.quizSession;
   showScreen('quiz');
   $('quiz-depth').textContent = adaptiveSession.depthLevel;
+  $('quiz-category').textContent = currentCategoryName || '';
   setLevelIcon('quiz-level-icon', adaptiveSession.depthLevel);
   setProgress('quiz-progress', qs.currentIndex, qs.total);
 
@@ -379,6 +388,7 @@ async function startSession() {
 
   adaptiveSession    = new AdaptiveSession(contentProvider, { maxDepth: MAX_DEPTH });
   pendingQuizQuestions = null;
+  currentCategoryName = getCategoryName(topics[0]);
 
   try {
     const content = await adaptiveSession.start(topics);
