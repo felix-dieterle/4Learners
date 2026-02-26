@@ -407,6 +407,16 @@ $('essay-btn').addEventListener('click', openEssayModal);
 $('essay-generate-btn').addEventListener('click', handleGenerateEssay);
 $('essay-close-btn').addEventListener('click', () => $('essay-overlay').classList.add('hidden'));
 
+// ── Drum Kit ─────────────────────────────────────────────────────────────────
+
+let drumKit = null;
+
+$('drumkit-btn').addEventListener('click', () => {
+  showScreen('drumkit');
+  if (!drumKit) drumKit = new DrumKit('drumkit-canvas');
+});
+$('drumkit-back-btn').addEventListener('click', () => showScreen('start'));
+
 // Show settings prompt if no API key stored
 if (!getSavedApiKey()) {
   // Leave start screen active, user will notice the settings button
