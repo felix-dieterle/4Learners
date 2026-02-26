@@ -36,7 +36,8 @@
     <!-- ── Start Screen ──────────────────────────────────────── -->
     <section id="start-screen" class="screen active">
       <h2>What do you want to learn today?</h2>
-      <p>Enter one or more topics separated by commas:</p>
+      <p>Pick a built-in topic to start instantly, or enter your own (requires API key):</p>
+      <div id="category-chips" class="category-chips"></div>
       <input
         id="topic-input"
         type="text"
@@ -130,6 +131,7 @@
     </div>
   </div>
 
+  <script src="builtin-content.js"></script>
   <script src="engine.js"></script>
   <script src="app.js"></script>
 </body>
