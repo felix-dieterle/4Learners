@@ -305,6 +305,47 @@ Include 5-8 sentences and 4-6 questions spread across all provided topics.`;
     }
   }
 
+  // ── BuiltinContentProvider ─────────────────────────────────────────────────
+
+  /**
+   * Serves pre-built learning content for a fixed set of topic categories
+   * without requiring an AI API key.  Falls back to an error when a topic
+   * or depth level has no built-in content.
+   *
+   * @param {Array<{name: string, topics: string[], levels: object}>} categories
+   */
+  class BuiltinContentProvider {
+    constructor(categories) {
+      this._categories = categories || [];
+    }
+
+    /**
+     * Returns built-in sentences and questions for the given topics/depth.
+     * Matches the first topic against the category list (case-insensitive).
+     * @param {string[]} topics
+     * @param {number} depthLevel
+     * @returns {Promise<{sentences: object[], questions: object[]}>}
+     */
+    async generateContent(topics, depthLevel) {
+      const needle = (topics[0] || '').toLowerCase();
+      const category = this._categories.find((c) =>
+        c.topics.some((t) => t.toLowerCase() === needle)
+      );
+      if (!category) {
+        throw new Error(
+          `No built-in content for topic "${topics[0]}". Please add an OpenRouter API key in ⚙ Settings to use custom topics.`
+        );
+      }
+      const levelContent = category.levels[depthLevel];
+      if (!levelContent) {
+        throw new Error(
+          `No built-in content for "${topics[0]}" at depth level ${depthLevel}. Please add an OpenRouter API key in ⚙ Settings to unlock deeper levels.`
+        );
+      }
+      return { sentences: levelContent.sentences, questions: levelContent.questions };
+    }
+  }
+
   // ── Export ────────────────────────────────────────────────────────────────
 
   global.Engine = {
@@ -313,6 +354,7 @@ Include 5-8 sentences and 4-6 questions spread across all provided topics.`;
     QuizSession,
     AdaptiveSession,
     AIClient,
+    BuiltinContentProvider,
     Phase,
     FAST_ANSWER_THRESHOLD_MS,
   };

@@ -15,7 +15,7 @@ const MAX_DEPTH            = 3;
 
 // ── Engine (from engine.js) ──────────────────────────────────────────────────
 
-const { AdaptiveSession, AIClient, Phase } = Engine;
+const { AdaptiveSession, AIClient, BuiltinContentProvider, Phase } = Engine;
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -237,7 +237,10 @@ async function advanceOrComplete() {
     } else {
       // advanceToNextLevel already started a new learning phase; also pre-load quiz
       await preloadQuizQuestions(topTopics);
-      await showDisclaimer();
+      const apiKey = getSavedApiKey();
+      if (apiKey) {
+        await showDisclaimer();
+      }
       renderLearning();
     }
   } catch (err) {
@@ -247,9 +250,12 @@ async function advanceOrComplete() {
 }
 
 async function preloadQuizQuestions(topics) {
+  const apiKey = getSavedApiKey();
   try {
-    const aiClient = new AIClient(getSavedApiKey());
-    const content  = await aiClient.generateContent(topics, adaptiveSession.depthLevel);
+    const provider = apiKey
+      ? new AIClient(apiKey)
+      : new BuiltinContentProvider(typeof BUILTIN_CATEGORIES !== 'undefined' ? BUILTIN_CATEGORIES : []);
+    const content  = await provider.generateContent(topics, adaptiveSession.depthLevel);
     pendingQuizQuestions = content.questions ?? [];
   } catch {
     pendingQuizQuestions = [];
@@ -349,10 +355,6 @@ async function handleGenerateEssay() {
 
 async function startSession() {
   const apiKey = getSavedApiKey();
-  if (!apiKey) {
-    showError('An OpenRouter API key is required. Tap ⚙ Settings to add one.');
-    return;
-  }
 
   const raw = $('topic-input').value.trim();
   if (!raw) { showError('Please enter at least one topic.'); return; }
@@ -361,16 +363,23 @@ async function startSession() {
 
   $('start-error').classList.add('hidden');
   showScreen('loading');
-  $('loading-message').textContent = 'Generating your personalised content…';
+  $('loading-message').textContent = 'Loading your personalised content…';
 
-  const aiClient = new AIClient(apiKey);
-  adaptiveSession    = new AdaptiveSession(aiClient, { maxDepth: MAX_DEPTH });
+  // Use the AI client when an API key is available, otherwise fall back to
+  // built-in pre-bundled content for the selected topic category.
+  const contentProvider = apiKey
+    ? new AIClient(apiKey)
+    : new BuiltinContentProvider(typeof BUILTIN_CATEGORIES !== 'undefined' ? BUILTIN_CATEGORIES : []);
+
+  adaptiveSession    = new AdaptiveSession(contentProvider, { maxDepth: MAX_DEPTH });
   pendingQuizQuestions = null;
 
   try {
     const content = await adaptiveSession.start(topics);
     pendingQuizQuestions = content.questions ?? [];
-    await showDisclaimer();
+    if (apiKey) {
+      await showDisclaimer();
+    }
     renderLearning();
   } catch (err) {
     showScreen('start');
@@ -384,10 +393,49 @@ function showError(msg) {
   el.classList.remove('hidden');
 }
 
+// ── Category chips ────────────────────────────────────────────────────────────
+
+// Pick a random category index once per page load so re-renders stay consistent.
+const _initialCategoryIndex = (() => {
+  const categories = typeof BUILTIN_CATEGORIES !== 'undefined' ? BUILTIN_CATEGORIES : [];
+  return categories.length > 0 ? Math.floor(Math.random() * categories.length) : 0;
+})();
+
+function renderCategoryChips() {
+  const categories = typeof BUILTIN_CATEGORIES !== 'undefined' ? BUILTIN_CATEGORIES : [];
+  const container = $('category-chips');
+  if (!container || categories.length === 0) return;
+
+  container.innerHTML = '';
+  categories.forEach((cat, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'category-chip' + (idx === _initialCategoryIndex ? ' selected' : '');
+    btn.textContent = cat.name;
+    btn.dataset.topic = cat.topics[0];
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.category-chip').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      $('topic-input').value = cat.topics[0];
+    });
+    container.appendChild(btn);
+  });
+
+  // Pre-fill topic input with the randomly selected category
+  $('topic-input').value = categories[_initialCategoryIndex].topics[0];
+}
+
 // ── Event listeners ───────────────────────────────────────────────────────────
 
 $('start-btn').addEventListener('click', startSession);
 $('topic-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') startSession(); });
+// Deselect chip when the user manually types a custom topic
+$('topic-input').addEventListener('input', () => {
+  const chips = document.querySelectorAll('.category-chip');
+  const val = $('topic-input').value.trim();
+  chips.forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.topic === val);
+  });
+});
 
 $('settings-btn').addEventListener('click', openSettings);
 $('settings-save-btn').addEventListener('click', saveSettings);
@@ -408,6 +456,4 @@ $('essay-generate-btn').addEventListener('click', handleGenerateEssay);
 $('essay-close-btn').addEventListener('click', () => $('essay-overlay').classList.add('hidden'));
 
 // Show settings prompt if no API key stored
-if (!getSavedApiKey()) {
-  // Leave start screen active, user will notice the settings button
-}
+renderCategoryChips();
